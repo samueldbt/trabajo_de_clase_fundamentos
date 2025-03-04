@@ -1,0 +1,13 @@
+n = int(input("Introduzca n: "))
+nbak = n
+m = 0
+t=0
+while n > 0 :
+    r = n % 10
+    n = n//10
+    m = m * 100 + r
+while m > 0:
+    r = m % 10
+    m =(m//10)
+    t = t * 10 + r
+print(f"{nbak} -> {t}")

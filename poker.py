@@ -1,5 +1,6 @@
 import random
 import os
+import itertools
 # Palos y rangos
 palos = ['♠', '♥', '♦', '♣']
 rangos = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
@@ -92,35 +93,138 @@ def comparar_manos(mano1, mano2): #devuelve cual mano es mas fuerte
     else:
         return 0
 
-def ronda_apuestas(nombres, fichas, activos):
-    print("\n--- Ronda de Apuestas ---")
-    apuestas = [0 for _ in nombres] #la apuesta inicial es 0
-    pozo = 0
+def mejor_mano_5cartas(cartas):
+    mejores = None
+    for combinacion in itertools.combinations(cartas, 5):
+        evaluacion = evaluar_mano(list(combinacion))
+        if (mejores is None) or (evaluacion > mejores):
+            mejores = evaluacion
+    return mejores
 
-    for i in range(len(nombres)):
-        if not activos[i]: #si un jugador no esta activo sigue de largo
-            continue
-        print(f"\n{nombres[i]}, tienes {fichas[i]} fichas.")
-        accion = input("¿(a)postar, (p)asar o (r)etirarte?: ").lower() #se decide la accion del jugador con condicionales y se usar .lower para evitar errores tipograficos
-        if accion == 'r':
-            activos[i] = False #cambia el estado del jugador
-            print(nombres[i], "se ha retirado.")
-        elif accion == 'a':
-            try: #esto es para ejecutar algo que podria fallar, si digamos el usuario aqui pone letras, el codigo va a ir al except de abajo
-                cantidad = int(input("¿Cuánto quieres apostar?: "))
-            except: #aqui dice lo que sea hace en el caso de que la instruccion de arriba falle, es super util por si pueden ocurrir cosas inesperadas que hagan fallar al codigo
-                cantidad = 0
-            if cantidad > fichas[i]: #aqui se trabaja con lo que se quiere apostar y lo que se tiene
-                cantidad = fichas[i] #si apuesta mas de lo que tiene pues apuesta todo
+def pre_ronda(nombres, fichas, activos):
+    print("\n--- Ronda pre-flop ---")
+    apuestas = [0 for _ in nombres] #la apuesta inicial de cada jugador es 0
+    pozo = 0
+    ciega_minima = 0
+
+    try: #esto es para ejecutar algo que podria fallar, si digamos el usuario aqui pone letras, el codigo va a ir al except de abajo
+            cantidad = int(input(f"\n{nombres[0]} pon la ciega menor: "))
+    except: #aqui dice lo que sea hace en el caso de que la instruccion de arriba falle, es super util por si pueden ocurrir cosas inesperadas que hagan fallar al codigo
+        if cantidad == 0:
+            cantidad = 1
+    ciega_minima = cantidad
+
+    #esto es para el resto de jugadores despues de la ciega
+    for i in range(len(nombres[1:])): #slicing para evitar a la ciega minima
+        #iguala, sube o retira
+        accion = input("¿(i)igualar, (s)subir o (r)etirarte?: ").lower()
+        if accion == "i":
+            cantidad +=cantidad
             fichas[i] -= cantidad #se resta lo que se aposto de lo que se tenia
             apuestas[i] += cantidad #se le suma a lo apostado pues lo apostado xd
-            pozo += cantidad #no se que es el pozo mano xd pero se le suma lo que se aposto
-            print(nombres[i], "apostó", cantidad)
-        elif accion == 'p':
-            print(nombres[i], "pasó.")
-        else:
-            print("Opción no válida. Se considera que pasaste.") #cuando no se digita ninguna de la opciones que son
-    return pozo, activos #no sabia que se podian devolver 2 variables asi xd
+            pozo += cantidad #se le suma al pozo lo que se aposto
+        elif accion == "s":
+            cantidad = int(input("cuanto desea subir (minimo el doble de la ciega): "))
+            if cantidad > fichas[i]: #aqui se trabaja con lo que se quiere apostar y lo que se tiene
+                cantidad = fichas[i] #si apuesta mas de lo que tiene pues apuesta todo
+            elif cantidad < cantidad + cantidad:
+                print("cantidad insuficiente, aumentando la minima posible: ")
+                cantidad = ciega_minima #debo mantener la ciega minima
+                cantidad += cantidad
+            fichas[i] -= cantidad #se resta lo que se aposto de lo que se tenia
+            apuestas[i] += cantidad #se le suma a lo apostado pues lo apostado xd
+            pozo += cantidad #se le suma al pozo lo que se aposto
+        elif accion == "r":
+            print("bye bye")
+            activos[i] = False
+            pozo = cantidad
+            
+        print(f"el pozo pre-flop es: {pozo}")
+
+    return pozo, activos
+
+def ronda_apuestas(nombres, fichas, activos, pozo):
+    print("\n--- Ronda de Apuestas ---")
+    apuestas = [0 for _ in nombres]
+    apuesta_max = 0
+    jugadores_pendientes = [i for i, activo in enumerate(activos) if activo]
+    ya_actuaron = [False for _ in nombres]
+
+    while True:
+        cambios = False
+        for i in jugadores_pendientes:
+            if not activos[i]:
+                continue
+            print(f"\n{nombres[i]}, tienes {fichas[i]} fichas. Apuesta actual: {apuestas[i]}. Apuesta máxima: {apuesta_max}.")
+            if apuesta_max == 0:
+                accion = input("¿(a)postar, (p)asar o (r)etirarte?: ").lower()
+            else:
+                accion = input("¿(a)postar/igualar, (r)etirarte?: ").lower()
+                if accion == 'p':
+                    print("No puedes pasar si ya hay una apuesta. Debes igualar o retirarte.")
+                    accion = input("¿(a)postar/igualar, (r)etirarte?: ").lower()
+            if accion == 'r':
+                activos[i] = False
+                print(nombres[i], "se ha retirado.")
+                cambios = True
+            elif accion == 'a':
+                if apuesta_max == 0:
+                    try:
+                        cantidad = int(input("¿Cuánto quieres apostar?: "))
+                    except:
+                        cantidad = 0
+                    if cantidad > fichas[i]:
+                        cantidad = fichas[i]
+                    apuestas[i] += cantidad
+                    fichas[i] -= cantidad
+                    pozo += cantidad
+                    apuesta_max = apuestas[i]
+                    print(nombres[i], "apostó", cantidad)
+                    cambios = True
+                    ya_actuaron = [False for _ in nombres]
+                    ya_actuaron[i] = True
+                else:
+                    diferencia = apuesta_max - apuestas[i]
+                    extra = 0
+                    try:
+                        extra = int(input(f"¿Quieres subir la apuesta? Tu mínimo para igualar es {diferencia}. Si quieres subir, ingresa el total (mayor que {diferencia}), si solo igualas pon {diferencia}: "))
+                    except:
+                        extra = diferencia
+                    if extra < diferencia:
+                        extra = diferencia
+                    if extra > fichas[i]:
+                        extra = fichas[i]
+                    apuestas[i] += extra
+                    fichas[i] -= extra
+                    pozo += extra
+                    if apuestas[i] > apuesta_max:
+                        apuesta_max = apuestas[i]
+                        ya_actuaron = [False for _ in nombres]
+                        ya_actuaron[i] = True
+                        cambios = True
+                    else:
+                        ya_actuaron[i] = True
+            elif accion == 'p' and apuesta_max == 0:
+                print(nombres[i], "pasó.")
+                ya_actuaron[i] = True
+            else:
+                print("Opción no válida. Se considera que pasaste si es posible, o igualas si hay apuesta.")
+                if apuesta_max == 0:
+                    ya_actuaron[i] = True
+                else:
+                    diferencia = apuesta_max - apuestas[i]
+                    if diferencia > fichas[i]:
+                        diferencia = fichas[i]
+                    apuestas[i] += diferencia
+                    fichas[i] -= diferencia
+                    pozo += diferencia
+                    ya_actuaron[i] = True
+        jugadores_pendientes = [i for i, activo in enumerate(activos) if activo and apuestas[i] != apuesta_max]
+        if len([a for i,a in enumerate(activos) if a]) <= 1:
+            break
+        if all(ya_actuaron[i] or not activos[i] for i in range(len(nombres))) and len(jugadores_pendientes) == 0:
+            break
+    return pozo, activos
 
 def mostrar_comunitarias(comunitarias, cuantas):
     print("\nCartas comunitarias:")
@@ -140,9 +244,11 @@ def juego(): #funcion principal, esto contiene todas las funciones declaradas an
         manos = []
         activos = [True for _ in nombres] #genera una lista con un True por cada jugador que sigue en la partida
 
+        #fase 0: preflop
+        pozo, activos = pre_ronda(nombres, fichas, activos)
+
         for _ in nombres:
             manos.append(repartir(baraja, 2)) #se le dan las cartas a cada jugador
-
         comunitarias = repartir(baraja, 5)
         cartas_mostradas = 0
         pozo_total = 0 #esto es para llevar la cuenta de la apuesta en la mesa a lo largo de las rondas
@@ -153,13 +259,13 @@ def juego(): #funcion principal, esto contiene todas las funciones declaradas an
             input(f"\nTurno de {nombres[i]}. Presiona Enter para ver tus cartas.")
             print(f"Tus cartas: {mostrar_mano(manos[i])}")
             input("Presiona Enter para ocultar tus cartas.")
-            os.system("cls" if os.name == "nt" else clear)  #esta funcion es para limpiar la terminal asi evitamos hacer un millon de saltos de linea feos, el "nt" refiere a windows y el else es por si es otro os
-                                                            #el os detecta sistema operativo y ejecuta cls que es para limpiar la terminal en windows
+            os.system("cls" if os.name == "nt" else "clear")  #esta funcion es para limpiar la terminal asi evitamos hacer un millon de saltos de linea feos, el "nt" refiere a windows y el else es por si es otro os
+                                                              #el os detecta sistema operativo y ejecuta cls que es para limpiar la terminal en windows
 
         # Fase 1: Flop
         cartas_mostradas += 3
         mostrar_comunitarias(comunitarias, cartas_mostradas)
-        pozo, activos = ronda_apuestas(nombres, fichas, activos)
+        pozo, activos = ronda_apuestas(nombres, fichas, activos, pozo)
         pozo_total += pozo #se le suma pues lo de la ronda 
 
         # Fase 2: Turn
@@ -167,7 +273,7 @@ def juego(): #funcion principal, esto contiene todas las funciones declaradas an
         if len(vivos) > 1:
             cartas_mostradas += 1
             mostrar_comunitarias(comunitarias, cartas_mostradas) #muestra una cartita mas
-            pozo, activos = ronda_apuestas(nombres, fichas, activos)
+            pozo, activos = ronda_apuestas(nombres, fichas, activos, pozo)
             pozo_total += pozo #igual que en la 163 xd
 
         # Fase 3: River
@@ -175,29 +281,28 @@ def juego(): #funcion principal, esto contiene todas las funciones declaradas an
         if len(vivos) > 1:
             cartas_mostradas += 1
             mostrar_comunitarias(comunitarias, cartas_mostradas)
-            pozo, activos = ronda_apuestas(nombres, fichas, activos)
+            pozo, activos = ronda_apuestas(nombres, fichas, activos, pozo)
             pozo_total += pozo #hasta aca igual que arriba
 
         # Mostrar ganador
         vivos = [i for i in range(len(nombres)) if activos[i]] #vuelve a mirar los activos ya que estan las 5 cartas sobre la mesa
         if len(vivos) == 1:
             ganador = vivos[0] #gana el que queda vivo en caso de que todos se hubieran retirado
-            print(f"\n{nombres[ganador]} gana el pozo de {pozo_total} con la mejor mano.")
+            print(f"\n{nombres[ganador]} gana el pozo porque los demás se retiraron.")
         else:
-            mejor = manos[vivos[0]] + comunitarias 
+            mejor = mejor_mano_5cartas(manos[vivos[0]] + comunitarias) 
             ganador = vivos[0] #esto es como un marcador para orita compara mano por mano
             print("\n--- Mostrar manos ---")
             for i in vivos: #compara todos los jugadores que siguen en la partida
-                actual = manos[i] + comunitarias #marcador para ir uno a uno
+                actual_eval = mejor_mano_5cartas(manos[i] + comunitarias) #marcador para ir uno a uno
                 print(f"{nombres[i]} tiene: {mostrar_mano(manos[i])}")
-                if comparar_manos(actual, mejor) > 0: #si la mano del jugador que se tiene en actual es mas fuerte que la del mejor (que por defecto es el primero de la lista)
-                    mejor = actual #el mejor pasa a ser el que se esta comparando actualmente
+                if actual_eval > mejor: #si la mano del jugador que se tiene en actual es mas fuerte que la del mejor (que por defecto es el primero de la lista)
+                    mejor = actual_eval #el mejor pasa a ser el que se esta comparando actualmente
                     ganador = i #ganador se vuelve un marcador del jugador actual
-            print(f"\n{nombres[ganador]} gana el pozo de {pozo_total} con la mejor mano.")
+            print(f"\n{nombres[ganador]} gana el pozo con la mejor mano.")
 
         fichas[ganador] += pozo_total #se le suma las ganancias a las fichas del ganador
         dealer = (dealer + 1) % len(nombres) #esto es para pasar el turno del que va primero y asi en el juego
         input("Presiona Enter para continuar...") #al presionar enter pues se repite otra vez, pasa a otra ronda
-        os.system("cls" if os.name == "nt" else clear) #limpia la terminal para la siguiente ronda uwus
+        os.system("cls" if os.name == "nt" else "clear") #limpia la terminal para la siguiente ronda uwus
 juego()
-

@@ -182,7 +182,7 @@ def juego(): #funcion principal, esto contiene todas las funciones declaradas an
         vivos = [i for i in range(len(nombres)) if activos[i]] #vuelve a mirar los activos ya que estan las 5 cartas sobre la mesa
         if len(vivos) == 1:
             ganador = vivos[0] #gana el que queda vivo en caso de que todos se hubieran retirado
-            print(f"\n{nombres[ganador]} gana el pozo porque los demás se retiraron.")
+            print(f"\n{nombres[ganador]} gana el pozo de {pozo_total} con la mejor mano.")
         else:
             mejor = manos[vivos[0]] + comunitarias 
             ganador = vivos[0] #esto es como un marcador para orita compara mano por mano
@@ -193,12 +193,11 @@ def juego(): #funcion principal, esto contiene todas las funciones declaradas an
                 if comparar_manos(actual, mejor) > 0: #si la mano del jugador que se tiene en actual es mas fuerte que la del mejor (que por defecto es el primero de la lista)
                     mejor = actual #el mejor pasa a ser el que se esta comparando actualmente
                     ganador = i #ganador se vuelve un marcador del jugador actual
-            print(f"\n{nombres[ganador]} gana el pozo con la mejor mano.")
+            print(f"\n{nombres[ganador]} gana el pozo de {pozo_total} con la mejor mano.")
 
         fichas[ganador] += pozo_total #se le suma las ganancias a las fichas del ganador
         dealer = (dealer + 1) % len(nombres) #esto es para pasar el turno del que va primero y asi en el juego
         input("Presiona Enter para continuar...") #al presionar enter pues se repite otra vez, pasa a otra ronda
         os.system("cls" if os.name == "nt" else clear) #limpia la terminal para la siguiente ronda uwus
 juego()
-
 
